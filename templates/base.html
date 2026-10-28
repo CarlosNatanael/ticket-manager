@@ -20,9 +20,18 @@
                 <div class="brand-icon"><i class="bi bi-ticket-perforated-fill"></i></div>
                 <span class="navbar-brand-text fw-bold text-light" style="font-size: 0.95rem; letter-spacing: -0.3px;">RA QA</span>
             </div>
-            <div class="user-pill d-flex align-items-center gap-2 px-2 py-1 rounded-pill">
-                <span class="status-dot"></span>
-                <span class="text-secondary fw-medium" style="font-size: 0.75rem;">{{ ra_user or 'Desconectado' }}</span>
+            <div class="d-flex align-items-center gap-2">
+                <div class="user-pill d-flex align-items-center gap-2 px-2 py-1 rounded-pill">
+                    <span class="status-dot"></span>
+                    <span class="text-secondary fw-medium" style="font-size: 0.75rem;">{{ ra_user or 'Desconectado' }}</span>
+                </div>
+                {% if session.get('autenticado') %}
+                <form method="POST" action="{{ url_for('logout') }}" class="m-0">
+                    <button type="submit" class="btn btn-action" title="Sair">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
     </header>
