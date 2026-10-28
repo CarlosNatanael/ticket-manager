@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Barra Rápida de Adição -->
+<div class="modern-card p-3 mb-4">
+    <form id="form-add-lote" class="m-0 d-flex flex-column gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <select id="tipoInput" class="form-select modern-input w-auto fw-bold text-secondary border-0 bg-dark">
+                <option value="jogo">Set Inteiro (Game ID)</option>
+                <option value="conquista">Conquistas Individuais (Ach. ID)</option>
+            </select>
+            <!-- Este campo só aparece se escolher "Conquistas" -->
+            <input type="text" class="form-control modern-input font-monospace flex-grow-1 border-0 bg-dark d-none" id="gameIdInput" placeholder="Digite o ID do Set (Game ID) para vinculá-las...">
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <input type="text" class="form-control modern-input font-monospace flex-grow-1 border-0 bg-dark" id="idsInput" placeholder="Cole os IDs dos Sets (vírgula ou espaço)...">
+            <button type="submit" class="btn btn-gradient text-nowrap"><i class="bi bi-cpu"></i> Adicionar</button>
+        </div>
+    </form>
+</div>
+
+<!-- Barra de Ordenação -->
+<div class="d-flex justify-content-between align-items-center mb-2 px-1 flex-wrap gap-2">
+    <strong class="text-indigo"><i class="bi bi-list-task"></i> Monitoramento Ativo</strong>
+
+    <div class="d-flex align-items-center gap-2">
+        <small class="text-muted" style="font-size: 0.7rem;">
+            <i class="bi bi-arrow-clockwise"></i> F5 atualiza (cache 10min)
+        </small>
+
+        <form method="GET" action="/" class="m-0">
+            <select name="ordem" class="form-select form-select-sm modern-input w-auto"
+                    onchange="this.form.submit()">
+                <option value="tickets"   {{ 'selected' if ordem == 'tickets'   }}>Mais Tickets</option>
+                <option value="az"        {{ 'selected' if ordem == 'az'        }}>A → Z</option>
+                <option value="set"       {{ 'selected' if ordem == 'set'       }}>Game ID</option>
+                <option value="conquista" {{ 'selected' if ordem == 'conquista' }}>Sets c/ Conquistas</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="list-group list-group-flush border border-secondary border-opacity-25 rounded-3 mb-4">
+
+    <!-- LOOP DE JOGOS -->
+    {% for jogo in jogos %}
+    <div class="list-group-item bg-transparent d-flex align-items-center gap-3 py-2 border-secondary border-opacity-25"
+         data-tipo="jogo" data-id="{{ jogo.id }}">
+
+        <img src="{{ jogo.icone or 'https://static.retroachievements.org/assets/images/favicon.webp' }}"
+             width="36" height="36" class="rounded shadow-sm">
+
+        <div style="min-width: 180px; max-width: 250px;">
+            <div class="fw-bold text-light text-truncate" title="{{ jogo.titulo }}">{{ jogo.titulo }}</div>
+            <div class="text-muted" style="font-size: 0.7rem;">Game ID: {{ jogo.id }}</div>
+        </div>
+
+        <div class="flex-grow-1">
+            <input type="text"
+                   class="form-control form-control-sm input-ghost w-100 autosave-notas"
+                   data-tipo="jogo" data-id="{{ jogo.id }}"
+                   value="{{ jogo.notas }}"
+                   placeholder="Adicionar nota ao set...">
+        </div>
+
+        {% set total_tickets_jogo = jogo.qtd_tickets_set or 0 %}
+        <span class="badge {{ 'bg-danger bg-opacity-25 border-danger text-danger' if total_tickets_jogo > 0 else 'bg-success bg-opacity-25 border-success text-success' }} border rounded-pill px-3"
+              style="min-width: 85px; text-align: center;">
+            {{ total_tickets_jogo }} Tickets
+        </span>
+
+        <div class="d-flex gap-1 ms-2">
+            <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}"
+               target="_blank"
+               class="btn btn-sm btn-outline-info border-0 text-info opacity-75 hover-opacity-100"
+               title="Ver lógica no AutoCR">
+                <i class="bi bi-file-earmark-code-fill"></i>
+            </a>
+            <a href="{{ jogo.url_ticket }}" target="_blank"
+               class="btn btn-sm btn-outline-secondary border-0 text-muted hover-white"
+               title="Abrir tickets do set">
+                <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-warning border-0 text-warning opacity-75 hover-opacity-100 btn-refresh"
+                    data-id="{{ jogo.id }}" title="Forçar atualização">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger border-0 text-danger opacity-75 hover-opacity-100 btn-delete"
+                    data-tipo="jogo" data-id="{{ jogo.id }}" title="Excluir set">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+
+        <!-- CONQUISTAS -->
+        {% if jogo.conquistas %}
+            {% for conquista in jogo.conquistas %}
+            <div class="list-group-item bg-transparent d-flex align-items-center gap-3 py-1 border-secondary border-opacity-10 border-top-0 ps-5"
+                 style="background-color: rgba(255,255,255,0.01) !important;"
+                 data-tipo="conquista" data-id="{{ conquista.id }}">
+
+                <i class="bi bi-arrow-return-right text-muted opacity-25"></i>
+                <img src="{{ conquista.icone }}" width="28" height="28" class="rounded shadow-sm opacity-75">
+
+                <div style="min-width: 150px; max-width: 250px;">
+                    <div class="fw-bold text-light text-truncate" style="font-size: 0.85rem;"
+                         title="{{ conquista.titulo }}">{{ conquista.titulo }}</div>
+                    <div class="text-muted" style="font-size: 0.65rem;">Ach ID: {{ conquista.id }}</div>
+                </div>
+
+                <div class="flex-grow-1">
+                    <input type="text"
+                           class="form-control form-control-sm input-ghost w-100 autosave-notas"
+                           data-tipo="conquista" data-id="{{ conquista.id }}"
+                           value="{{ conquista.notas }}"
+                           placeholder="Anotação da conquista...">
+                </div>
+
+                <span class="badge {{ 'bg-danger bg-opacity-25 border-danger text-danger' if conquista.qtd_tickets > 0 else 'bg-success bg-opacity-25 border-success text-success' }} border rounded-pill px-2"
+                      style="min-width: 75px; text-align: center; font-size: 0.7rem;">
+                    {{ conquista.qtd_tickets }} Tickets
+                </span>
+
+                <div class="d-flex gap-1 ms-2">
+                    <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}/achievement/{{ conquista.id }}"
+                       target="_blank"
+                       class="btn btn-sm btn-outline-info border-0 text-info opacity-75 hover-opacity-100"
+                       title="Ver lógica no AutoCR">
+                        <i class="bi bi-file-earmark-code-fill"></i>
+                    </a>
+                    <a href="{{ conquista.url_ticket }}" target="_blank"
+                       class="btn btn-sm btn-outline-secondary border-0 text-muted hover-white"
+                       title="Abrir ticket da conquista">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger border-0 text-danger opacity-75 hover-opacity-100 btn-delete"
+                            data-tipo="conquista" data-id="{{ conquista.id }}" title="Excluir conquista">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+
+    {% endfor %}
+
+    {% if not jogos %}
+    <div class="list-group-item bg-transparent text-center text-muted py-4 border-0">
+        Nenhum item adicionado.
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
