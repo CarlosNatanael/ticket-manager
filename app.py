@@ -105,33 +105,45 @@ def buscar_dados_conquista(achievement_id):
     }
 
 
-def buscar_tickets_abertos_set(game_id):
-    url = (
-        f"https://retroachievements.org/API/API_GetTicketData.php"
-        f"?z={RA_USER}&y={RA_API_KEY}&g={game_id}&d=1"
-    )
-    try:
+def buscar_tickets_set(game_id):
+    """Todos os tickets do set.
+
+    A API só devolve os tickets das conquistas oficiais (Core) por padrão;
+    os das conquistas não oficiais exigem outra chamada com f=5. O site do RA
+    mostra os dois somados, então buscamos os dois.
+    """
+    tickets = []
+    vistos = set()
+    for filtro in ('', '&f=5'):
+        url = (
+            f"https://retroachievements.org/API/API_GetTicketData.php"
+            f"?z={RA_USER}&y={RA_API_KEY}&g={game_id}&d=1{filtro}"
+        )
         r = requests.get(url, timeout=20)
         if r.status_code != 200:
-            return 0
-        tickets = r.json().get('Tickets', [])
-        return sum(1 for t in tickets if t.get('ReportState') == 1)
+            raise RuntimeError(f"HTTP {r.status_code} ao buscar tickets do set {game_id}")
+        for t in r.json().get('Tickets', []) or []:
+            tid = t.get('ID')
+            if tid is not None:
+                if tid in vistos:
+                    continue
+                vistos.add(tid)
+            tickets.append(t)
+    return tickets
+
+
+def buscar_tickets_abertos_set(game_id):
+    try:
+        return sum(1 for t in buscar_tickets_set(game_id) if t.get('ReportState') == 1)
     except Exception as e:
         print(f"Erro ao buscar tickets abertos do set {game_id}: {e}")
         return 0
 
 
 def buscar_tickets_set_detalhado(game_id):
-    url = (
-        f"https://retroachievements.org/API/API_GetTicketData.php"
-        f"?z={RA_USER}&y={RA_API_KEY}&g={game_id}&d=1"
-    )
     contagem = {'open': 0, 'resolved': 0, 'closed': 0, 'total_abertos': 0}
     try:
-        r = requests.get(url, timeout=20)
-        if r.status_code != 200:
-            return contagem
-        for t in r.json().get('Tickets', []):
+        for t in buscar_tickets_set(game_id):
             state = t.get('ReportState')
             if state == 1:
                 contagem['open'] += 1
