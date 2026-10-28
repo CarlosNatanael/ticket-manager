@@ -121,7 +121,8 @@ def buscar_tickets_set_detalhado(game_id):
 
 @app.route('/')
 def dashboard():
-    ordem = request.args.get('ordem', 'tickets')  # tickets | az | set | conquista
+    ordem = request.args.get('ordem', 'tickets')
+    filtro_tag = request.args.get('tag', 'todas') # todas | meu | revisao
 
     jogos = JogoMonitorado.query.all()
     agora = datetime.utcnow()
@@ -140,29 +141,26 @@ def dashboard():
 
     db.session.commit()
 
-    # ---- ORDENAÇÃO ----
+    # APLICA FILTRO DE TAG
+    if filtro_tag == 'meu':
+        jogos = [j for j in jogos if j.feito_por_mim]
+    elif filtro_tag == 'revisao':
+        jogos = [j for j in jogos if j.em_revisao]
+
+    # ORDENAÇÃO
     if ordem == 'az':
         jogos.sort(key=lambda j: j.titulo.lower())
     elif ordem == 'set':
         jogos.sort(key=lambda j: j.id)
     elif ordem == 'conquista':
-        # sets com conquistas monitoradas primeiro
         jogos.sort(key=lambda j: (len(j.conquistas) == 0, j.titulo.lower()))
-    else:  # 'tickets' (default) — mais tickets primeiro
+    else:
         jogos.sort(key=lambda j: j.qtd_tickets_set or 0, reverse=True)
 
-    # dentro de cada jogo, ordena conquistas por tickets desc
     for jogo in jogos:
         jogo.conquistas.sort(key=lambda c: c.qtd_tickets or 0, reverse=True)
 
-    conquistas = ConquistaMonitorada.query.all()
-    return render_template(
-        'dashboard.html',
-        jogos=jogos,
-        conquistas=conquistas,
-        ra_user=RA_USER,
-        ordem=ordem,
-    )
+    return render_template('dashboard.html', jogos=jogos, ordem=ordem, filtro_tag=filtro_tag, ra_user=RA_USER)
 
 @app.route('/api/delete/<tipo>/<int:item_id>', methods=['DELETE'])
 def delete_item(tipo, item_id):
@@ -177,21 +175,75 @@ def delete_item(tipo, item_id):
     db.session.commit()
     return jsonify({'status': 'ok'})
 
-@app.route('/api/notas/<tipo>/<int:item_id>', methods=['POST'])
-def salvar_notas(tipo, item_id):
+@app.route('/api/editar/<tipo>/<int:item_id>', methods=['POST'])
+def editar_item(tipo, item_id):
     dados = request.get_json() or {}
-    notas = dados.get('notas', '')
 
     if tipo == 'jogo':
         item = JogoMonitorado.query.get_or_404(item_id)
+        if 'conquista_manutencao_id' in dados:
+            item.conquista_manutencao_id = dados.get('conquista_manutencao_id')
+        if 'nota_conquista_manutencao' in dados:
+            item.nota_conquista_manutencao = dados.get('nota_conquista_manutencao')
     elif tipo == 'conquista':
         item = ConquistaMonitorada.query.get_or_404(item_id)
     else:
         return jsonify({'erro': 'Tipo inválido'}), 400
 
-    item.notas = notas
+    if 'notas' in dados:
+        item.notas = dados.get('notas', '')
+
+    if 'status' in dados:
+        item.status = dados.get('status', 'pendente')
+
+    if 'feito_por_mim' in dados:
+        item.feito_por_mim = bool(dados.get('feito_por_mim'))
+    if 'em_revisao' in dados:
+        item.em_revisao = bool(dados.get('em_revisao'))
+
+    # marcar/desmarcar manutenção
+    if dados.get('marcar_manutencao'):
+        item.ultima_manutencao = datetime.utcnow()
+
     db.session.commit()
-    return jsonify({'status': 'ok'})
+    return jsonify({
+        'status': 'ok',
+        'ultima_manutencao': item.ultima_manutencao.isoformat() if item.ultima_manutencao else None,
+    })
+
+@app.route('/api/item/<tipo>/<int:item_id>')
+def get_item(tipo, item_id):
+    if tipo == 'jogo':
+        item = JogoMonitorado.query.get_or_404(item_id)
+        conquistas = [
+            {'id': c.id, 'titulo': c.titulo, 'qtd_tickets': c.qtd_tickets}
+            for c in item.conquistas
+        ]
+        ref_id = item.conquista_manutencao_id
+        ref_cadastrada = any(c['id'] == ref_id for c in conquistas) if ref_id else False
+        return jsonify({
+            'id': item.id,
+            'titulo': item.titulo,
+            'notas': item.notas or '',
+            'status': item.status or 'pendente',
+            'nota_conquista_manutencao': item.nota_conquista_manutencao or '',
+            'ultima_manutencao': item.ultima_manutencao.isoformat() if item.ultima_manutencao else None,
+            'conquista_manutencao_id': ref_id,
+            'feito_por_mim': item.feito_por_mim,
+            'em_revisao': item.em_revisao,
+            'conquista_referenciada_cadastrada': ref_cadastrada,
+            'conquistas': conquistas,
+        })
+    elif tipo == 'conquista':
+        item = ConquistaMonitorada.query.get_or_404(item_id)
+        return jsonify({
+            'id': item.id,
+            'titulo': item.titulo,
+            'notas': item.notas or '',
+            'status': item.status or 'pendente',
+            'ultima_manutencao': item.ultima_manutencao.isoformat() if item.ultima_manutencao else None,
+        })
+    return jsonify({'erro': 'Tipo inválido'}), 400
 
 @app.route('/api/add', methods=['POST'])
 def add_ids():

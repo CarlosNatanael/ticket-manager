@@ -1,154 +1,274 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Barra Rápida de Adição -->
-<div class="modern-card p-3 mb-4">
-    <form id="form-add-lote" class="m-0 d-flex flex-column gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <select id="tipoInput" class="form-select modern-input w-auto fw-bold text-secondary border-0 bg-dark">
-                <option value="jogo">Set Inteiro (Game ID)</option>
-                <option value="conquista">Conquistas Individuais (Ach. ID)</option>
-            </select>
-            <!-- Este campo só aparece se escolher "Conquistas" -->
-            <input type="text" class="form-control modern-input font-monospace flex-grow-1 border-0 bg-dark d-none" id="gameIdInput" placeholder="Digite o ID do Set (Game ID) para vinculá-las...">
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <input type="text" class="form-control modern-input font-monospace flex-grow-1 border-0 bg-dark" id="idsInput" placeholder="Cole os IDs dos Sets (vírgula ou espaço)...">
-            <button type="submit" class="btn btn-gradient text-nowrap"><i class="bi bi-cpu"></i> Adicionar</button>
-        </div>
+
+<!-- Painel de Adição Compacto -->
+<div class="modern-card p-2 mb-4">
+    <form id="form-add-lote" class="m-0 d-flex align-items-center gap-2 flex-wrap">
+        <select id="tipoInput" class="form-select modern-input w-auto fw-medium border-0 bg-dark" style="font-size: 0.8rem; padding: 0.35rem 2rem 0.35rem 0.75rem;">
+            <option value="jogo">Adicionar Set (Game ID)</option>
+            <option value="conquista">Adicionar Conquistas (Ach. ID)</option>
+        </select>
+        
+        <input type="text" class="form-control modern-input font-monospace border-0 bg-dark d-none" 
+               id="gameIdInput" placeholder="ID do Set (Pai)..." style="width: 150px; font-size: 0.8rem;">
+
+        <input type="text" class="form-control modern-input font-monospace border-0 bg-dark flex-grow-1" 
+               id="idsInput" placeholder="Cole os IDs (separados por vírgula ou espaço)..." style="font-size: 0.8rem;">
+        
+        <button type="submit" class="btn btn-gradient px-3 py-1 d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+            <i class="bi bi-plus-lg"></i> Adicionar
+        </button>
     </form>
 </div>
 
-<!-- Barra de Ordenação -->
+<!-- Toolbar de Filtros -->
 <div class="d-flex justify-content-between align-items-center mb-2 px-1 flex-wrap gap-2">
-    <strong class="text-indigo"><i class="bi bi-list-task"></i> Monitoramento Ativo</strong>
-
     <div class="d-flex align-items-center gap-2">
-        <small class="text-muted" style="font-size: 0.7rem;">
-            <i class="bi bi-arrow-clockwise"></i> F5 atualiza (cache 10min)
-        </small>
-
+        <span class="text-light fw-semibold" style="font-size: 0.85rem;"><i class="bi bi-list-task text-indigo"></i> Monitoramento</span>
+        <span class="badge bg-secondary bg-opacity-25 text-secondary rounded-pill" style="font-size: 0.65rem;">{{ jogos|length }} sets</span>
+    </div>
+    
+    <div class="d-flex align-items-center gap-2">
+        <!-- Filtro de Tags -->
         <form method="GET" action="/" class="m-0">
-            <select name="ordem" class="form-select form-select-sm modern-input w-auto"
-                    onchange="this.form.submit()">
+            {% if ordem %}<input type="hidden" name="ordem" value="{{ ordem }}">{% endif %}
+            <select name="tag" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium" 
+                    onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
+                <option value="todas"   {{ 'selected' if filtro_tag == 'todas'   }}>Todas as Tags</option>
+                <option value="meu"     {{ 'selected' if filtro_tag == 'meu'     }}>Meus Sets</option>
+                <option value="revisao" {{ 'selected' if filtro_tag == 'revisao' }}>Em Revisão</option>
+            </select>
+        </form>
+
+        <!-- Filtro de Ordenação -->
+        <form method="GET" action="/" class="m-0">
+            {% if filtro_tag %}<input type="hidden" name="tag" value="{{ filtro_tag }}">{% endif %}
+            <select name="ordem" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium" 
+                    onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
                 <option value="tickets"   {{ 'selected' if ordem == 'tickets'   }}>Mais Tickets</option>
-                <option value="az"        {{ 'selected' if ordem == 'az'        }}>A → Z</option>
+                <option value="az"        {{ 'selected' if ordem == 'az'        }}>A-Z</option>
                 <option value="set"       {{ 'selected' if ordem == 'set'       }}>Game ID</option>
-                <option value="conquista" {{ 'selected' if ordem == 'conquista' }}>Sets c/ Conquistas</option>
             </select>
         </form>
     </div>
 </div>
 
-<div class="list-group list-group-flush border border-secondary border-opacity-25 rounded-3 mb-4">
-
-    <!-- LOOP DE JOGOS -->
+<!-- Lista Principal -->
+<div class="modern-card overflow-hidden mb-4">
+    
     {% for jogo in jogos %}
-    <div class="list-group-item bg-transparent d-flex align-items-center gap-3 py-2 border-secondary border-opacity-25"
-         data-tipo="jogo" data-id="{{ jogo.id }}">
-
+    {% set total_tickets_jogo = jogo.qtd_tickets_set or 0 %}
+    
+    <!-- Linha do Set -->
+    <div class="d-flex align-items-center gap-3 py-2 px-3 list-row item-linha" data-tipo="jogo" data-id="{{ jogo.id }}">
+        
         <img src="{{ jogo.icone or 'https://static.retroachievements.org/assets/images/favicon.webp' }}"
-             width="36" height="36" class="rounded shadow-sm">
+             width="32" height="32" class="rounded shadow-sm flex-shrink-0 border border-secondary border-opacity-25" style="object-fit: cover;">
 
-        <div style="min-width: 180px; max-width: 250px;">
-            <div class="fw-bold text-light text-truncate" title="{{ jogo.titulo }}">{{ jogo.titulo }}</div>
-            <div class="text-muted" style="font-size: 0.7rem;">Game ID: {{ jogo.id }}</div>
+        <div style="min-width: 240px; flex: 0 0 240px;">
+            <div class="fw-bold text-light text-truncate" style="font-size: 0.85rem;" title="{{ jogo.titulo }}">{{ jogo.titulo }}</div>
+            <div class="text-muted d-flex gap-2 align-items-center mt-1 flex-wrap" style="font-size: 0.65rem;">
+                <span class="font-monospace">#{{ jogo.id }}</span>
+                <span class="status-badge status-{{ jogo.status }}">{{ jogo.status | replace('_', ' ') | capitalize }}</span>
+                
+                {% if jogo.feito_por_mim %}
+                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25 rounded-pill" style="font-size: 0.55rem; padding: 0.1rem 0.4rem;">Meu Set</span>
+                {% endif %}
+                {% if jogo.em_revisao %}
+                    <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25 rounded-pill" style="font-size: 0.55rem; padding: 0.1rem 0.4rem;">Revisão</span>
+                {% endif %}
+
+                {% if jogo.ultima_manutencao %}
+                <span class="text-info opacity-75" title="Manutenção: {{ jogo.ultima_manutencao.strftime('%d/%m/%Y') }}">
+                    <i class="bi bi-tools"></i> {{ jogo.ultima_manutencao.strftime('%d/%m') }}
+                </span>
+                {% endif %}
+            </div>
         </div>
 
         <div class="flex-grow-1">
-            <input type="text"
-                   class="form-control form-control-sm input-ghost w-100 autosave-notas"
-                   data-tipo="jogo" data-id="{{ jogo.id }}"
-                   value="{{ jogo.notas }}"
-                   placeholder="Adicionar nota ao set...">
+            <button type="button" class="btn btn-sm w-100 text-start btn-nota py-1 px-2" data-tipo="jogo" data-id="{{ jogo.id }}">
+                {% if jogo.notas %}
+                    <i class="bi bi-journal-text text-secondary me-1"></i> <span class="text-secondary text-truncate d-inline-block w-100">{{ jogo.notas[:80] }}{% if jogo.notas|length > 80 %}…{% endif %}</span>
+                {% else %}
+                    <i class="bi bi-pencil text-muted opacity-50 me-1"></i> <span class="text-muted opacity-50">Adicionar nota sobre o set...</span>
+                {% endif %}
+            </button>
         </div>
 
-        {% set total_tickets_jogo = jogo.qtd_tickets_set or 0 %}
-        <span class="badge {{ 'bg-danger bg-opacity-25 border-danger text-danger' if total_tickets_jogo > 0 else 'bg-success bg-opacity-25 border-success text-success' }} border rounded-pill px-3"
-              style="min-width: 85px; text-align: center;">
-            {{ total_tickets_jogo }} Tickets
-        </span>
+        <div class="flex-shrink-0" style="width: 80px; text-align: right;">
+            <span class="badge {{ 'bg-danger bg-opacity-10 text-danger border-danger border-opacity-25' if total_tickets_jogo > 0 else 'bg-success bg-opacity-10 text-success border-success border-opacity-25' }} border rounded-pill w-100 py-1" style="font-size: 0.7rem;">
+                {{ total_tickets_jogo }} Tickets
+            </span>
+        </div>
 
-        <div class="d-flex gap-1 ms-2">
-            <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}"
-               target="_blank"
-               class="btn btn-sm btn-outline-info border-0 text-info opacity-75 hover-opacity-100"
-               title="Ver lógica no AutoCR">
-                <i class="bi bi-file-earmark-code-fill"></i>
-            </a>
-            <a href="{{ jogo.url_ticket }}" target="_blank"
-               class="btn btn-sm btn-outline-secondary border-0 text-muted hover-white"
-               title="Abrir tickets do set">
+        <div class="d-flex gap-1 flex-shrink-0 action-buttons">
+            <a href="{{ jogo.url_ticket }}" target="_blank" class="btn btn-action" title="Abrir Tickets no Site">
                 <i class="bi bi-box-arrow-up-right"></i>
             </a>
-            <button class="btn btn-sm btn-outline-warning border-0 text-warning opacity-75 hover-opacity-100 btn-refresh"
-                    data-id="{{ jogo.id }}" title="Forçar atualização">
+            <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}" target="_blank" class="btn btn-action" title="Ver lógica no AutoCR">
+                <i class="bi bi-file-earmark-code"></i>
+            </a>
+            <button class="btn btn-action btn-refresh" data-id="{{ jogo.id }}" title="Sincronizar agora">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger border-0 text-danger opacity-75 hover-opacity-100 btn-delete"
-                    data-tipo="jogo" data-id="{{ jogo.id }}" title="Excluir set">
-                <i class="bi bi-trash"></i>
+            <button class="btn btn-action btn-delete hover-danger" data-tipo="jogo" data-id="{{ jogo.id }}" title="Excluir set">
+                <i class="bi bi-trash3"></i>
             </button>
         </div>
     </div>
 
-        <!-- CONQUISTAS -->
-        {% if jogo.conquistas %}
-            {% for conquista in jogo.conquistas %}
-            <div class="list-group-item bg-transparent d-flex align-items-center gap-3 py-1 border-secondary border-opacity-10 border-top-0 ps-5"
-                 style="background-color: rgba(255,255,255,0.01) !important;"
-                 data-tipo="conquista" data-id="{{ conquista.id }}">
+    <!-- Sanfona de Conquistas -->
+    {% if jogo.conquistas %}
+    <div class="list-row conquistas-toggle bg-black bg-opacity-25" data-jogo-id="{{ jogo.id }}" role="button">
+        <div class="d-flex align-items-center gap-2 text-muted px-3 py-1" style="font-size: 0.7rem; margin-left: 44px;">
+            <i class="bi bi-chevron-down toggle-icon" style="transition: transform 0.2s; font-size: 0.6rem;"></i>
+            <span class="fw-medium">{{ jogo.conquistas|length }} conquista{{ 's' if jogo.conquistas|length != 1 }} monitorada{{ 's' if jogo.conquistas|length != 1 }}</span>
+        </div>
+    </div>
 
-                <i class="bi bi-arrow-return-right text-muted opacity-25"></i>
-                <img src="{{ conquista.icone }}" width="28" height="28" class="rounded shadow-sm opacity-75">
+    <!-- Lista de Conquistas -->
+    <div class="conquistas-container bg-black bg-opacity-10" id="conquistas-{{ jogo.id }}">
+        {% for conquista in jogo.conquistas %}
+        <div class="d-flex align-items-center gap-3 py-1 px-3 list-row item-linha border-top border-secondary border-opacity-10" data-tipo="conquista" data-id="{{ conquista.id }}">
+            
+            <div style="width: 32px; display: flex; justify-content: flex-end;">
+                <i class="bi bi-arrow-return-right text-muted opacity-25" style="font-size: 0.7rem;"></i>
+            </div>
+            
+            <img src="{{ conquista.icone }}" width="24" height="24" class="rounded shadow-sm flex-shrink-0 opacity-75">
 
-                <div style="min-width: 150px; max-width: 250px;">
-                    <div class="fw-bold text-light text-truncate" style="font-size: 0.85rem;"
-                         title="{{ conquista.titulo }}">{{ conquista.titulo }}</div>
-                    <div class="text-muted" style="font-size: 0.65rem;">Ach ID: {{ conquista.id }}</div>
-                </div>
-
-                <div class="flex-grow-1">
-                    <input type="text"
-                           class="form-control form-control-sm input-ghost w-100 autosave-notas"
-                           data-tipo="conquista" data-id="{{ conquista.id }}"
-                           value="{{ conquista.notas }}"
-                           placeholder="Anotação da conquista...">
-                </div>
-
-                <span class="badge {{ 'bg-danger bg-opacity-25 border-danger text-danger' if conquista.qtd_tickets > 0 else 'bg-success bg-opacity-25 border-success text-success' }} border rounded-pill px-2"
-                      style="min-width: 75px; text-align: center; font-size: 0.7rem;">
-                    {{ conquista.qtd_tickets }} Tickets
-                </span>
-
-                <div class="d-flex gap-1 ms-2">
-                    <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}/achievement/{{ conquista.id }}"
-                       target="_blank"
-                       class="btn btn-sm btn-outline-info border-0 text-info opacity-75 hover-opacity-100"
-                       title="Ver lógica no AutoCR">
-                        <i class="bi bi-file-earmark-code-fill"></i>
-                    </a>
-                    <a href="{{ conquista.url_ticket }}" target="_blank"
-                       class="btn btn-sm btn-outline-secondary border-0 text-muted hover-white"
-                       title="Abrir ticket da conquista">
-                        <i class="bi bi-box-arrow-up-right"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-danger border-0 text-danger opacity-75 hover-opacity-100 btn-delete"
-                            data-tipo="conquista" data-id="{{ conquista.id }}" title="Excluir conquista">
-                        <i class="bi bi-trash"></i>
-                    </button>
+            <div style="min-width: 200px; flex: 0 0 200px;">
+                <div class="fw-medium text-light text-truncate" style="font-size: 0.78rem;" title="{{ conquista.titulo }}">{{ conquista.titulo }}</div>
+                <div class="text-muted d-flex gap-2 align-items-center mt-1" style="font-size: 0.6rem;">
+                    <span class="font-monospace">#{{ conquista.id }}</span>
+                    <span class="status-badge status-{{ conquista.status }}">{{ conquista.status | replace('_', ' ') | capitalize }}</span>
+                    {% if conquista.ultima_manutencao %}
+                    <span class="text-info opacity-75"><i class="bi bi-tools"></i> {{ conquista.ultima_manutencao.strftime('%d/%m') }}</span>
+                    {% endif %}
                 </div>
             </div>
-            {% endfor %}
-        {% endif %}
+
+            <div class="flex-grow-1">
+                <button type="button" class="btn btn-sm w-100 text-start btn-nota py-1 px-2" data-tipo="conquista" data-id="{{ conquista.id }}">
+                    {% if conquista.notas %}
+                        <i class="bi bi-journal-text text-secondary me-1"></i> <span class="text-secondary text-truncate d-inline-block w-100">{{ conquista.notas[:80] }}{% if conquista.notas|length > 80 %}…{% endif %}</span>
+                    {% else %}
+                        <i class="bi bi-pencil text-muted opacity-50 me-1"></i> <span class="text-muted opacity-50">Adicionar nota...</span>
+                    {% endif %}
+                </button>
+            </div>
+
+            <div class="flex-shrink-0" style="width: 80px; text-align: right;">
+                <span class="badge {{ 'bg-danger bg-opacity-10 text-danger border-danger border-opacity-25' if conquista.qtd_tickets > 0 else 'bg-success bg-opacity-10 text-success border-success border-opacity-25' }} border rounded-pill w-100 py-1" style="font-size: 0.65rem;">
+                    {{ conquista.qtd_tickets }} Tickets
+                </span>
+            </div>
+
+            <div class="d-flex gap-1 flex-shrink-0 action-buttons">
+                <a href="https://carlosnatanael.github.io/AutoCR/#!/game/{{ jogo.id }}/achievement/{{ conquista.id }}" target="_blank" class="btn btn-action" title="Ver lógica no AutoCR">
+                    <i class="bi bi-file-earmark-code"></i>
+                </a>
+                <button class="btn btn-action btn-delete hover-danger" data-tipo="conquista" data-id="{{ conquista.id }}" title="Excluir conquista">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not loop.last %}
+        <div class="border-bottom border-secondary border-opacity-25"></div>
+    {% endif %}
 
     {% endfor %}
 
     {% if not jogos %}
-    <div class="list-group-item bg-transparent text-center text-muted py-4 border-0">
-        Nenhum item adicionado.
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox fs-3 opacity-25 d-block mb-2"></i>
+        Nenhum set monitorado ainda.
     </div>
     {% endif %}
-
 </div>
+
+<!-- MODAL DE EDIÇÃO -->
+<div class="modal fade" id="modalEditar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modern-card" style="border-radius: 12px;">
+            <div class="modal-header border-secondary border-opacity-25 pb-2">
+                <h6 class="modal-title fw-bold text-light" style="font-size: 0.9rem;">
+                    <i class="bi bi-pencil-square text-indigo"></i> <span id="modalTitulo"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="font-size: 0.6rem;"></button>
+            </div>
+            <div class="modal-body py-3">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.7rem;">Status</label>
+                        <select id="modalStatus" class="form-select form-select-sm modern-input">
+                            <option value="pendente">Pendente</option>
+                            <option value="em_manutencao">Em manutenção</option>
+                            <option value="nao_publicado">Não Publicado</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Opções para Set -->
+                    <div class="col-md-6" id="wrapConquista" style="display: none;">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.7rem;">Conquista Mexida</label>
+                        <select id="modalConquista" class="form-select form-select-sm modern-input mb-1">
+                            <option value="">— Nenhuma —</option>
+                        </select>
+                        <div id="wrapConquistaManual" style="display: none;">
+                            <input type="text" id="modalConquistaIdManual" class="form-control form-control-sm modern-input font-monospace" placeholder="ID da conquista...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NOVO: Bloco exclusivo para a conquista -->
+                <div id="wrapNotaConquista" class="mt-3 p-2 rounded" style="display: none; background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+                    <label class="form-label text-warning mb-1" style="font-size: 0.7rem;">
+                        <i class="bi bi-wrench-adjustable"></i> O que foi feito nesta conquista?
+                    </label>
+                    <textarea id="modalNotaConquista" class="form-control modern-input" rows="2" style="font-size: 0.8rem; resize: none;" placeholder="Anotação exclusiva desta conquista..."></textarea>
+                </div>
+
+                <!-- Tags -->
+                <div class="d-flex gap-4 mt-3 mb-2" id="wrapTags" style="display: none;">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="modalFeitoPorMim">
+                        <label class="form-check-label text-light" for="modalFeitoPorMim" style="font-size: 0.75rem;">Feito por mim</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="modalEmRevisao">
+                        <label class="form-check-label text-light" for="modalEmRevisao" style="font-size: 0.75rem;">Em Revisão</label>
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <label class="form-label text-muted mb-1" style="font-size: 0.7rem;">Notas Gerais do Set / Item</label>
+                    <textarea id="modalNotas" class="form-control modern-input" rows="3" style="font-size: 0.8rem; resize: none;" placeholder="O que foi feito no set? O que falta?"></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-25">
+                    <small class="text-muted" style="font-size: 0.65rem;">
+                        <i class="bi bi-clock-history"></i> Manutenção: <span id="modalUltima" class="text-light fw-medium">—</span>
+                    </small>
+                    <button type="button" id="btnMarcarManutencao" class="btn btn-sm btn-outline-info border-0 px-2 py-0" style="font-size: 0.7rem;">
+                        <i class="bi bi-tools"></i> Registrar agora
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary border-opacity-25 pt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal" style="font-size: 0.75rem;">Cancelar</button>
+                <button type="button" id="btnSalvarModal" class="btn btn-sm btn-gradient px-3" style="font-size: 0.75rem;">
+                    <i class="bi bi-check2"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
