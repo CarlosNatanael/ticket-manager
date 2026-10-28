@@ -288,8 +288,72 @@ body {
     box-shadow: 0 0 0 1px var(--accent-color) !important;
 }
 
-.status-nao_publicado { 
-    color: #a855f7; 
-    background: rgba(168, 85, 247, 0.1); 
-    border-color: rgba(168, 85, 247, 0.2); 
+.status-nao_publicado {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.2);
+}
+
+/* Nota: ícone + texto numa linha flex, para o texto encolher com "…" em vez de o botão
+   esconder o texto inteiro (o span w-100 estourava o botão e virava só "…") */
+.btn-nota {
+    display: flex !important;
+    align-items: center;
+}
+.btn-nota > span {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* Selects: espaço para a setinha (o padding do .modern-input fazia o texto ficar por cima dela) */
+.form-select.modern-input {
+    padding-right: 2rem !important;
+}
+
+/* ----- Mobile: linhas viram "cartões" em vez de estourar a largura ----- */
+@media (max-width: 767.98px) {
+    main.container-xl {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+
+    /* Linha 1: ícone + título/badges. Linha 2: nota. Linha 3: tickets + botões */
+    .item-linha {
+        flex-wrap: wrap;
+        gap: 0.35rem 0.6rem !important;
+    }
+    .item-linha .row-titulo {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+    .item-linha .row-nota {
+        order: 3;
+        flex: 1 1 100% !important;
+        min-width: 0;
+    }
+    .item-linha .row-tickets {
+        order: 4;
+        width: auto !important;
+        flex: 0 0 auto;
+        text-align: left !important;
+    }
+    .item-linha .row-tickets .badge {
+        width: auto !important;
+        padding: 0.35rem 0.7rem !important;
+        font-size: 0.75rem !important;
+    }
+    .item-linha .action-buttons {
+        order: 5;
+        margin-left: auto;
+        gap: 0.25rem !important;
+    }
+    .item-linha .row-indent {
+        width: 6px !important;
+    }
+
+    /* Botões de toque maiores */
+    .btn-action {
+        padding: 0.4rem 0.6rem;
+        font-size: 1.05rem;
+    }
 }
