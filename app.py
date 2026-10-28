@@ -1,10 +1,17 @@
+import hmac
 import os
 import re
+import secrets
+import time
 from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, jsonify
+from flask import (
+    Flask, render_template, request, jsonify,
+    session, redirect, url_for,
+)
 import requests
 from dotenv import load_dotenv
+from werkzeug.security import check_password_hash
 
 from models import db, JogoMonitorado, ConquistaMonitorada
 
@@ -13,9 +20,27 @@ load_dotenv()
 RA_USER = os.getenv('RA_USER')
 RA_API_KEY = os.getenv('RA_API_KEY')
 
+# Segurança: senha única de acesso ao app.
+# Prefira APP_PASSWORD_HASH (veja o README); APP_PASSWORD (texto puro) também funciona.
+APP_PASSWORD_HASH = os.getenv('APP_PASSWORD_HASH')
+APP_PASSWORD = os.getenv('APP_PASSWORD')
+
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    print("AVISO: SECRET_KEY não definida no .env. Usando uma chave temporária "
+          "(o login será perdido a cada reinício do servidor).")
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///monitor.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.update(
+    SECRET_KEY=SECRET_KEY,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',  # também protege as rotas POST/DELETE contra CSRF
+    SESSION_COOKIE_SECURE=os.getenv('COOKIE_SECURE', '0') == '1',  # use 1 se estiver em HTTPS
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
 
 db.init_app(app)
 
@@ -119,10 +144,112 @@ def buscar_tickets_set_detalhado(game_id):
         print(f"Erro ao buscar detalhes do set {game_id}: {e}")
     return contagem
 
+# ==========================================
+# AUTENTICAÇÃO
+# ==========================================
+MAX_FALHAS_LOGIN = 5
+BLOQUEIO_LOGIN_SEG = 300
+_falhas_login = {}  # ip -> {'falhas': int, 'bloqueado_ate': float}
+
+
+def verificar_senha(senha):
+    if APP_PASSWORD_HASH:
+        return check_password_hash(APP_PASSWORD_HASH, senha)
+    if APP_PASSWORD:
+        return hmac.compare_digest(APP_PASSWORD.encode(), senha.encode())
+    return False
+
+
+def segundos_bloqueio(ip):
+    reg = _falhas_login.get(ip)
+    if not reg:
+        return 0
+    restante = reg['bloqueado_ate'] - time.time()
+    if restante <= 0:
+        if reg['bloqueado_ate']:
+            _falhas_login.pop(ip, None)
+        return 0
+    return int(restante) + 1
+
+
+def registrar_falha(ip):
+    reg = _falhas_login.setdefault(ip, {'falhas': 0, 'bloqueado_ate': 0})
+    reg['falhas'] += 1
+    if reg['falhas'] >= MAX_FALHAS_LOGIN:
+        reg['bloqueado_ate'] = time.time() + BLOQUEIO_LOGIN_SEG
+        reg['falhas'] = 0
+
+
+def destino_seguro(destino):
+    # Só aceita caminhos internos (evita open redirect)
+    if destino and destino.startswith('/') and not destino.startswith('//'):
+        return destino
+    return url_for('dashboard')
+
+
+@app.before_request
+def exigir_login():
+    if request.endpoint in (None, 'login', 'static'):
+        return None
+    if session.get('autenticado'):
+        return None
+    if request.path.startswith('/api/'):
+        return jsonify({'erro': 'Não autenticado'}), 401
+    destino = request.full_path.rstrip('?')
+    return redirect(url_for('login', next=destino))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('autenticado'):
+        return redirect(url_for('dashboard'))
+
+    if not (APP_PASSWORD_HASH or APP_PASSWORD):
+        return render_template(
+            'login.html',
+            erro='Nenhuma senha configurada. Defina APP_PASSWORD_HASH no arquivo .env.',
+        ), 503
+
+    erro = None
+    status = 200
+    if request.method == 'POST':
+        ip = request.remote_addr or 'desconhecido'
+        espera = segundos_bloqueio(ip)
+        if espera:
+            erro = f'Muitas tentativas. Tente novamente em {espera // 60 + 1} min.'
+            status = 429
+        elif verificar_senha(request.form.get('senha', '')):
+            _falhas_login.pop(ip, None)
+            session.clear()
+            session['autenticado'] = True
+            session.permanent = True
+            return redirect(destino_seguro(request.args.get('next')))
+        else:
+            registrar_falha(ip)
+            erro = 'Senha incorreta.'
+            status = 401
+    return render_template('login.html', erro=erro), status
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ==========================================
+# DASHBOARD
+# ==========================================
+STATUS_VALIDOS = ('pendente', 'concluido', 'em_manutencao', 'nao_publicado')
+
+
 @app.route('/')
 def dashboard():
     ordem = request.args.get('ordem', 'tickets')
     filtro_tag = request.args.get('tag', 'todas') # todas | meu | revisao
+    filtro_status = request.args.get('status', 'todos') # todos | pendente | concluido | em_manutencao | nao_publicado
+    if filtro_status not in STATUS_VALIDOS:
+        filtro_status = 'todos'
 
     jogos = JogoMonitorado.query.all()
     agora = datetime.utcnow()
@@ -147,6 +274,10 @@ def dashboard():
     elif filtro_tag == 'revisao':
         jogos = [j for j in jogos if j.em_revisao]
 
+    # APLICA FILTRO DE STATUS
+    if filtro_status != 'todos':
+        jogos = [j for j in jogos if (j.status or 'pendente') == filtro_status]
+
     # ORDENAÇÃO
     if ordem == 'az':
         jogos.sort(key=lambda j: j.titulo.lower())
@@ -160,7 +291,14 @@ def dashboard():
     for jogo in jogos:
         jogo.conquistas.sort(key=lambda c: c.qtd_tickets or 0, reverse=True)
 
-    return render_template('dashboard.html', jogos=jogos, ordem=ordem, filtro_tag=filtro_tag, ra_user=RA_USER)
+    return render_template(
+        'dashboard.html',
+        jogos=jogos,
+        ordem=ordem,
+        filtro_tag=filtro_tag,
+        filtro_status=filtro_status,
+        ra_user=RA_USER,
+    )
 
 @app.route('/api/delete/<tipo>/<int:item_id>', methods=['DELETE'])
 def delete_item(tipo, item_id):
@@ -334,4 +472,5 @@ def api_tickets_detalhado(game_id):
     return jsonify(buscar_tickets_set_detalhado(game_id))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # O debugger do Flask permite executar código no servidor: só ligue localmente (FLASK_DEBUG=1).
+    app.run(debug=os.getenv('FLASK_DEBUG', '0') == '1')

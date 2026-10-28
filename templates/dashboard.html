@@ -29,29 +29,34 @@
         <span class="badge bg-secondary bg-opacity-25 text-secondary rounded-pill" style="font-size: 0.65rem;">{{ jogos|length }} sets</span>
     </div>
     
-    <div class="d-flex align-items-center gap-2">
+    <!-- Filtros (um único form para os três selects manterem os valores uns dos outros) -->
+    <form method="GET" action="/" class="m-0 d-flex align-items-center gap-2 flex-wrap">
+        <!-- Filtro de Status -->
+        <select name="status" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium"
+                onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
+            <option value="todos"          {{ 'selected' if filtro_status == 'todos'          }}>Todos os Status</option>
+            <option value="pendente"       {{ 'selected' if filtro_status == 'pendente'       }}>Pendente</option>
+            <option value="concluido"      {{ 'selected' if filtro_status == 'concluido'      }}>Concluído</option>
+            <option value="em_manutencao"  {{ 'selected' if filtro_status == 'em_manutencao'  }}>Em manutenção</option>
+            <option value="nao_publicado"  {{ 'selected' if filtro_status == 'nao_publicado'  }}>Não publicado</option>
+        </select>
+
         <!-- Filtro de Tags -->
-        <form method="GET" action="/" class="m-0">
-            {% if ordem %}<input type="hidden" name="ordem" value="{{ ordem }}">{% endif %}
-            <select name="tag" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium" 
-                    onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
-                <option value="todas"   {{ 'selected' if filtro_tag == 'todas'   }}>Todas as Tags</option>
-                <option value="meu"     {{ 'selected' if filtro_tag == 'meu'     }}>Meus Sets</option>
-                <option value="revisao" {{ 'selected' if filtro_tag == 'revisao' }}>Em Revisão</option>
-            </select>
-        </form>
+        <select name="tag" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium"
+                onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
+            <option value="todas"   {{ 'selected' if filtro_tag == 'todas'   }}>Todas as Tags</option>
+            <option value="meu"     {{ 'selected' if filtro_tag == 'meu'     }}>Meus Sets</option>
+            <option value="revisao" {{ 'selected' if filtro_tag == 'revisao' }}>Em Revisão</option>
+        </select>
 
         <!-- Filtro de Ordenação -->
-        <form method="GET" action="/" class="m-0">
-            {% if filtro_tag %}<input type="hidden" name="tag" value="{{ filtro_tag }}">{% endif %}
-            <select name="ordem" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium" 
-                    onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
-                <option value="tickets"   {{ 'selected' if ordem == 'tickets'   }}>Mais Tickets</option>
-                <option value="az"        {{ 'selected' if ordem == 'az'        }}>A-Z</option>
-                <option value="set"       {{ 'selected' if ordem == 'set'       }}>Game ID</option>
-            </select>
-        </form>
-    </div>
+        <select name="ordem" class="form-select form-select-sm modern-input w-auto border-0 bg-transparent text-light fw-medium"
+                onchange="this.form.submit()" style="font-size: 0.75rem; padding: 0.2rem 2rem 0.2rem 0.5rem;">
+            <option value="tickets"   {{ 'selected' if ordem == 'tickets'   }}>Mais Tickets</option>
+            <option value="az"        {{ 'selected' if ordem == 'az'        }}>A-Z</option>
+            <option value="set"       {{ 'selected' if ordem == 'set'       }}>Game ID</option>
+        </select>
+    </form>
 </div>
 
 <!-- Lista Principal -->

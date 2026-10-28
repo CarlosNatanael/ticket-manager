@@ -1,5 +1,15 @@
+// Se a sessão expirar, qualquer chamada à API volta 401: manda para o login.
+(() => {
+    const fetchOriginal = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+        const resposta = await fetchOriginal(...args);
+        if (resposta.status === 401) window.location.href = '/login';
+        return resposta;
+    };
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     // ==========================================
     // 1. BARRA DE ADICIONAR
     // ==========================================
